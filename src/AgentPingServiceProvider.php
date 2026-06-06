@@ -26,6 +26,10 @@ class AgentPingServiceProvider extends ServiceProvider
 
     public const AI_EVENT_PROMPTING = 'Laravel\\Ai\\Events\\PromptingAgent';
 
+    public const QUEUE_EVENT_PROCESSED = 'Illuminate\\Queue\\Events\\JobProcessed';
+
+    public const QUEUE_EVENT_FAILED = 'Illuminate\\Queue\\Events\\JobFailed';
+
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/agentping.php', 'agentping');
@@ -99,7 +103,8 @@ class AgentPingServiceProvider extends ServiceProvider
         }
 
         if ((bool) ($config['auto_register_terminating'] ?? true)) {
-            $this->registerTerminatingFlush((float) ($config['terminating_flush_timeout'] ?? 5.0));
+            $this->registerTerminatingFlush((float) ($config['terminating_flush_timeout'] ?? 10.0));
+            $this->registerQueueFlush((float) ($config['terminating_flush_timeout'] ?? 10.0));
         }
     }
 
@@ -144,6 +149,30 @@ class AgentPingServiceProvider extends ServiceProvider
                 // Never crash user code on shutdown.
             }
         });
+    }
+
+    /**
+     * Flush after each queued job. In a long-running worker, app->terminating
+     * only fires when the worker shuts down, so without this, telemetry emitted
+     * inside a job would sit in memory until the worker stops (or be lost if it
+     * is killed). JobProcessed/JobFailed give us a reliable per-job boundary.
+     */
+    private function registerQueueFlush(float $timeout): void
+    {
+        $app = $this->app;
+        /** @var Dispatcher $events */
+        $events = $app->make(Dispatcher::class);
+
+        $flush = function () use ($app, $timeout): void {
+            try {
+                $app->make(AgentPing::class)->flush($timeout);
+            } catch (\Throwable) {
+                // Never crash the worker.
+            }
+        };
+
+        $events->listen(self::QUEUE_EVENT_PROCESSED, $flush);
+        $events->listen(self::QUEUE_EVENT_FAILED, $flush);
     }
 
     private function configPath(string $file): string
