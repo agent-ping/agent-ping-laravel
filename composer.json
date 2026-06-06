@@ -1,0 +1,56 @@
+{
+    "name": "agentping/laravel",
+    "description": "Production observability for AI agents: cost attribution, live monitoring, quality scoring. Laravel SDK with built-in laravel/ai instrumentation.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "agentping",
+        "observability",
+        "ai",
+        "llm",
+        "telemetry"
+    ],
+    "require": {
+        "php": "^8.5",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/console": "^11.0|^12.0|^13.0",
+        "illuminate/events": "^11.0|^12.0|^13.0",
+        "nesbot/carbon": "^2.0|^3.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0",
+        "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6"
+    },
+    "suggest": {
+        "laravel/ai": "Enables automatic LLM call instrumentation via Laravel\\Ai events."
+    },
+    "autoload": {
+        "psr-4": {
+            "AgentPing\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AgentPing\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AgentPing\\Laravel\\AgentPingServiceProvider"
+            ],
+            "aliases": {
+                "AgentPing": "AgentPing\\Laravel\\Facades\\AgentPing"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}

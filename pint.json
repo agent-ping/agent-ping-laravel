@@ -1,0 +1,12 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "declare_strict_types": false,
+        "concat_space": {
+            "spacing": "one"
+        }
+    },
+    "exclude": [
+        "vendor"
+    ]
+}
