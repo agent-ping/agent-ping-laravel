@@ -15,6 +15,8 @@ class AgentPing
 
     private ?Run $currentRun = null;
 
+    private ?string $currentAgentName = null;
+
     /** @var array<string, Run> */
     private array $invocationRuns = [];
 
@@ -80,6 +82,33 @@ class AgentPing
     public function setCurrentRun(?Run $run): void
     {
         $this->currentRun = $run;
+    }
+
+    /**
+     * Name to apply to auto-instrumented laravel/ai calls that aren't wrapped
+     * in a run and use the anonymous agent() helper (which carries no class
+     * name). Call once at the top of a request, job, or command; it is reset
+     * automatically at the end of each. Pass null to clear.
+     */
+    public function useAgent(?string $name): void
+    {
+        $this->currentAgentName = $name !== null && $name !== '' ? $name : null;
+    }
+
+    public function currentAgentName(): ?string
+    {
+        return $this->currentAgentName;
+    }
+
+    /**
+     * Clear the per-request/job scope (current run + agent name). Called by the
+     * service provider on app termination and after each queued job so state
+     * never leaks between requests or jobs in a long-running worker.
+     */
+    public function resetScope(): void
+    {
+        $this->currentRun = null;
+        $this->currentAgentName = null;
     }
 
     /**

@@ -105,4 +105,48 @@ class AgentNamingTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), '/finish')
             && ($r['status'] ?? null) === 'success');
     }
+
+    /**
+     * A named laravel/ai Agent class is auto-named from its class basename
+     * (the agent is exposed as an object on the prompt).
+     */
+    public function test_named_agent_class_is_auto_named(): void
+    {
+        Http::fake(['*' => Http::response([], 202)]);
+
+        $prompt = (object) ['agent' => new SalesCoach];
+        $this->app->make(HandleAgentPrompted::class)
+            ->handle($this->aiEvent('inv-named-1', $prompt));
+        AgentPingFacade::flush(5.0);
+
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/v1/runs')
+            && ($r['agent'] ?? null) === 'sales_coach');
+    }
+
+    /**
+     * useAgent() names un-wrapped anonymous calls in the current scope, and
+     * resetScope() clears it.
+     */
+    public function test_use_agent_names_anonymous_calls(): void
+    {
+        Http::fake(['*' => Http::response([], 202)]);
+
+        AgentPingFacade::useAgent('morning-briefing');
+        $this->app->make(HandleAgentPrompted::class)
+            ->handle($this->aiEvent('inv-use-1', new \stdClass));
+        AgentPingFacade::flush(5.0);
+
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/v1/runs')
+            && ($r['agent'] ?? null) === 'morning-briefing');
+
+        /** @var AgentPing $sdk */
+        $sdk = $this->app->make(AgentPing::class);
+        $sdk->resetScope();
+        $this->assertNull($sdk->currentAgentName());
+    }
 }
+
+/**
+ * Stub standing in for a named laravel/ai Agent class.
+ */
+class SalesCoach {}

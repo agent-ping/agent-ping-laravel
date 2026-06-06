@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @method static Run run(string $agent, ?string $customerId = null, ?string $feature = null, ?array $metadata = null, ?string $parentRunId = null)
  * @method static mixed agent(string $name, \Closure $callback, ?string $customerId = null, ?string $feature = null, ?array $metadata = null)
+ * @method static void useAgent(?string $name)
+ * @method static ?string currentAgentName()
+ * @method static void resetScope()
  * @method static string defaultAgentName()
  * @method static string heartbeat(string $agent, string $status = 'ok', ?float $costUsd = null, ?int $durationMs = null, ?array $metadata = null)
  * @method static int flush(float $timeoutSeconds = 5.0)

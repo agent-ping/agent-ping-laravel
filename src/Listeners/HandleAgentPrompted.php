@@ -76,7 +76,7 @@ class HandleAgentPrompted
         $synthetic = false;
         if ($run === null) {
             $synthetic = true;
-            $agentSlug = $this->deriveAgentSlug($prompt, $invocationId);
+            $agentSlug = $this->resolveAgentName($prompt);
             $run = $this->sdk->run($agentSlug, metadata: ['invocation_id' => $invocationId]);
             $this->sdk->bindInvocationRun($invocationId, $run);
         }
@@ -91,33 +91,45 @@ class HandleAgentPrompted
         }
     }
 
-    private function deriveAgentSlug(mixed $prompt, string $invocationId): string
+    /**
+     * Resolve the agent name for a synthetic run, in priority order: an
+     * explicit AgentPing::useAgent() name, then a named laravel/ai Agent class,
+     * then the configured default. The anonymous agent() helper has no class
+     * identity, so it falls through to useAgent()/default.
+     */
+    private function resolveAgentName(mixed $prompt): string
     {
-        if (is_object($prompt)) {
-            $agentClass = null;
-            if (isset($prompt->agent) && is_string($prompt->agent)) {
-                $agentClass = $prompt->agent;
-            } elseif (method_exists($prompt, 'agent')) {
-                try {
-                    $maybe = $prompt->agent();
-                    if (is_string($maybe)) {
-                        $agentClass = $maybe;
-                    } elseif (is_object($maybe)) {
-                        $agentClass = $maybe::class;
-                    }
-                } catch (\Throwable) {
-                    // ignore
-                }
-            }
-            if ($agentClass !== null && $agentClass !== '') {
-                $base = class_basename($agentClass);
+        return $this->sdk->currentAgentName()
+            ?? $this->namedAgentSlug($prompt)
+            ?? $this->sdk->defaultAgentName();
+    }
 
-                return Str::snake($base);
-            }
+    /**
+     * Snake-cased name of the laravel/ai Agent class behind this prompt, or
+     * null when the prompt has no named agent (e.g. the anonymous agent()
+     * helper, whose agent is an AnonymousAgent with no real identity).
+     */
+    private function namedAgentSlug(mixed $prompt): ?string
+    {
+        if (! is_object($prompt)) {
+            return null;
         }
 
-        // Anonymous agent() with no run wrapping: aggregate under the configured
-        // default so spend/pulse group cleanly, instead of a per-call throwaway.
-        return $this->sdk->defaultAgentName();
+        $agent = $prompt->agent ?? null;
+        $class = match (true) {
+            is_string($agent) => $agent,
+            is_object($agent) => $agent::class,
+            default => null,
+        };
+        if ($class === null) {
+            return null;
+        }
+
+        $base = class_basename($class);
+        if ($base === '' || $base === 'AnonymousAgent') {
+            return null;
+        }
+
+        return Str::snake($base);
     }
 }

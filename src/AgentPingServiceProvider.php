@@ -145,6 +145,7 @@ class AgentPingServiceProvider extends ServiceProvider
             try {
                 $sdk = $app->make(AgentPing::class);
                 $sdk->flush($timeout);
+                $sdk->resetScope();
             } catch (\Throwable) {
                 // Never crash user code on shutdown.
             }
@@ -165,7 +166,9 @@ class AgentPingServiceProvider extends ServiceProvider
 
         $flush = function () use ($app, $timeout): void {
             try {
-                $app->make(AgentPing::class)->flush($timeout);
+                $sdk = $app->make(AgentPing::class);
+                $sdk->flush($timeout);
+                $sdk->resetScope();
             } catch (\Throwable) {
                 // Never crash the worker.
             }
