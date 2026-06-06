@@ -12,7 +12,7 @@
         "telemetry"
     ],
     "require": {
-        "php": "^8.5",
+        "php": "^8.2",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "illuminate/http": "^11.0|^12.0|^13.0",
         "illuminate/console": "^11.0|^12.0|^13.0",
