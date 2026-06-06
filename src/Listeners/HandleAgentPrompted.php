@@ -116,6 +116,8 @@ class HandleAgentPrompted
             }
         }
 
-        return 'ai_invocation_' . substr($invocationId, 0, 8);
+        // Anonymous agent() with no run wrapping: aggregate under the configured
+        // default so spend/pulse group cleanly, instead of a per-call throwaway.
+        return $this->sdk->defaultAgentName();
     }
 }

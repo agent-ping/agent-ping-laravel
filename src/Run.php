@@ -80,7 +80,7 @@ class Run
         $this->sdk->enqueue('/v1/runs/' . $this->id . '/events', [
             'events' => [
                 [
-                    'id' => $evtId,
+                    'external_id' => $evtId,
                     'type' => $type,
                     'ts' => self::iso(Carbon::now()),
                     'data' => $data ?? [],

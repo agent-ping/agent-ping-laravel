@@ -23,6 +23,13 @@ return [
 
     'auto_register_terminating' => filter_var(env('AGENTPING_AUTO_REGISTER_TERMINATING', true), FILTER_VALIDATE_BOOLEAN),
 
+    // Agent name for auto-instrumented laravel/ai calls that can't be attributed
+    // to a named Agent class (e.g. the anonymous agent() helper) and aren't
+    // wrapped in a run. Without this they would each land under a throwaway name.
+    // Override per call/scope with AgentPing::run('name') or
+    // AgentPing::agent('name', fn () => ...).
+    'default_agent' => env('AGENTPING_DEFAULT_AGENT', 'ai-agent'),
+
     'user_agent' => 'agentping-laravel/0.1.0',
 
 ];

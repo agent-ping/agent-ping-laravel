@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Facade;
 
 /**
  * @method static Run run(string $agent, ?string $customerId = null, ?string $feature = null, ?array $metadata = null, ?string $parentRunId = null)
+ * @method static mixed agent(string $name, \Closure $callback, ?string $customerId = null, ?string $feature = null, ?array $metadata = null)
+ * @method static string defaultAgentName()
  * @method static string heartbeat(string $agent, string $status = 'ok', ?float $costUsd = null, ?int $durationMs = null, ?array $metadata = null)
  * @method static int flush(float $timeoutSeconds = 5.0)
  * @method static array status()

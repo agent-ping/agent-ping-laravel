@@ -77,6 +77,7 @@ class AgentPingServiceProvider extends ServiceProvider
                 client: $app->make(HttpClient::class),
                 warner: $app->make(WarnOnce::class),
                 apiKey: $config['api_key'] ?? null,
+                defaultAgent: (string) ($config['default_agent'] ?? 'ai-agent'),
             );
         });
     }

@@ -27,6 +27,7 @@ class AgentPing
         private readonly HttpClient $client,
         private readonly WarnOnce $warner,
         private readonly ?string $apiKey,
+        private readonly string $defaultAgent = 'ai-agent',
     ) {
         $this->region = Ids::extractRegion($apiKey);
         if ($apiKey === null || $apiKey === '') {
@@ -79,6 +80,52 @@ class AgentPing
     public function setCurrentRun(?Run $run): void
     {
         $this->currentRun = $run;
+    }
+
+    /**
+     * Agent name used for auto-instrumented laravel/ai calls when no run is
+     * active and the call cannot be attributed to a named Agent class (e.g. the
+     * anonymous agent() helper). Set per-app via AGENTPING_DEFAULT_AGENT.
+     */
+    public function defaultAgentName(): string
+    {
+        return $this->defaultAgent;
+    }
+
+    /**
+     * Run a callback under a named agent. Opens a run and makes it the current
+     * run, so any auto-instrumented laravel/ai calls inside the callback attach
+     * to it; finishes the run (success, or failed on exception) and restores
+     * the previous current run. Returns the callback's value.
+     *
+     * @template TReturn
+     *
+     * @param  \Closure(Run): TReturn  $callback
+     * @param  array<string, mixed>|null  $metadata
+     * @return TReturn
+     */
+    public function agent(
+        string $name,
+        \Closure $callback,
+        ?string $customerId = null,
+        ?string $feature = null,
+        ?array $metadata = null,
+    ): mixed {
+        $previous = $this->currentRun;
+        $run = $this->run($name, customerId: $customerId, feature: $feature, metadata: $metadata);
+
+        try {
+            $result = $callback($run);
+            $run->finish('success');
+
+            return $result;
+        } catch (\Throwable $e) {
+            $run->finish('failed');
+
+            throw $e;
+        } finally {
+            $this->currentRun = $previous;
+        }
     }
 
     /**
