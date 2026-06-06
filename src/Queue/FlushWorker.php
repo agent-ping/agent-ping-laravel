@@ -29,12 +29,24 @@ class FlushWorker
     {
         $deadline = microtime(true) + max(0.0, $timeoutSeconds);
         $sent = 0;
+        $first = true;
         while (microtime(true) < $deadline) {
+            // Honour backoff between retries (e.g. an event waiting for its
+            // run-start to be persisted) but never let a stale backoff block
+            // the first attempt of an explicit flush.
+            if (! $first && microtime(true) < $this->backoffUntil) {
+                $wait = min($this->backoffUntil, $deadline) - microtime(true);
+                if ($wait > 0) {
+                    usleep((int) ($wait * 1_000_000));
+                }
+            }
+            $first = false;
+
             $items = $this->queue->drain($this->batchSize);
             if ($items === []) {
                 break;
             }
-            $sent += $this->send($items, overrideBackoff: true);
+            $sent += $this->send($items, overrideBackoff: false);
         }
 
         return $sent;
@@ -125,7 +137,26 @@ class FlushWorker
                 continue;
             }
 
-            if (in_array($status, [400, 401, 403, 404, 422], true)) {
+            if ($status === 404) {
+                // The run this event/finish targets may not be persisted yet:
+                // run-start is published to the bus and consumed asynchronously,
+                // while the edge resolves the run synchronously. Retry with
+                // backoff so the write lands once run-start has been processed,
+                // instead of dropping it. A genuinely missing run exhausts
+                // attempts and drops, like any other failure.
+                $this->lastError = 'run_not_ready_404';
+                $attempts++;
+                if ($attempts >= self::MAX_ATTEMPTS) {
+                    $dropped++;
+                } else {
+                    $item['attempts'] = $attempts;
+                    $failed[] = $item;
+                }
+
+                continue;
+            }
+
+            if (in_array($status, [400, 401, 403, 422], true)) {
                 $this->lastError = 'client_status_' . $status;
 
                 continue;

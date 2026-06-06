@@ -17,7 +17,10 @@ return [
 
     'request_timeout' => (float) env('AGENTPING_REQUEST_TIMEOUT', 2.0),
 
-    'terminating_flush_timeout' => (float) env('AGENTPING_TERMINATING_FLUSH_TIMEOUT', 5.0),
+    // Allows a couple of backoff retries when an event/finish arrives before
+    // its run-start has been persisted (eventual consistency on the ingest
+    // side), including a cold-started worker.
+    'terminating_flush_timeout' => (float) env('AGENTPING_TERMINATING_FLUSH_TIMEOUT', 10.0),
 
     'listen_to_ai_sdk' => filter_var(env('AGENTPING_LISTEN_TO_AI_SDK', true), FILTER_VALIDATE_BOOLEAN),
 
