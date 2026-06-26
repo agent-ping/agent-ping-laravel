@@ -3,6 +3,8 @@
 namespace AgentPing\Laravel;
 
 use AgentPing\Laravel\Client\HttpClient;
+use AgentPing\Laravel\Exceptions\Paused;
+use AgentPing\Laravel\Guard\GuardVerdict;
 use AgentPing\Laravel\Queue\BoundedQueue;
 use AgentPing\Laravel\Queue\FlushWorker;
 use AgentPing\Laravel\Support\Ids;
@@ -27,6 +29,7 @@ class AgentPing
         private readonly BoundedQueue $queue,
         private readonly FlushWorker $worker,
         private readonly HttpClient $client,
+        private readonly HttpClient $controlClient,
         private readonly WarnOnce $warner,
         private readonly ?string $apiKey,
         private readonly string $defaultAgent = 'ai-agent',
@@ -48,6 +51,87 @@ class AgentPing
     public function isEnabled(): bool
     {
         return $this->apiKey !== null && $this->apiKey !== '';
+    }
+
+    /**
+     * The guard gate: a top-of-script safety net (guard-checks-spec). One
+     * synchronous call to the control plane that returns a verdict or, in hard
+     * mode, throws {@see Paused} on a block.
+     *
+     * Defaults fail closed: $mode "hard" throws on block, $onUnreachable
+     * "block" refuses to run when the gate cannot be reached. A 429 is our
+     * condition, not a safety signal: retried once then leans allow. An
+     * inactive plan is a no-op allow plus a loud one-time warning.
+     *
+     * @param  'hard'|'soft'  $mode
+     * @param  'block'|'allow'  $onUnreachable
+     */
+    public function guardCheck(
+        ?string $customerRef = null,
+        ?string $agent = null,
+        ?string $function = null,
+        ?string $environment = null,
+        string $mode = 'hard',
+        string $onUnreachable = 'block',
+    ): GuardVerdict {
+        $body = array_filter([
+            'customer_ref' => $customerRef,
+            'agent' => $agent,
+            'function' => $function,
+            'environment' => $environment,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        if (! $this->isEnabled()) {
+            return $this->guardUnreachable('not_initialized', $mode, $onUnreachable);
+        }
+
+        $result = $this->controlClient->postRaw('/v1/guard/check', $body);
+
+        if ($result['status'] === 429) {
+            usleep((int) (min($result['retry_after'] ?? 0.5, 1.0) * 1_000_000));
+            $result = $this->controlClient->postRaw('/v1/guard/check', $body);
+            if ($result['status'] === 429 || $result['status'] === 0) {
+                // A throttle is our condition, not a safety signal: lean allow.
+                return GuardVerdict::synthetic('allow');
+            }
+        }
+
+        if ($result['status'] !== 200 || ! isset($result['body']['decision'])) {
+            return $this->guardUnreachable('http_' . $result['status'], $mode, $onUnreachable);
+        }
+
+        $verdict = GuardVerdict::fromArray($result['body']);
+
+        if (! $verdict->active) {
+            $this->warner->warn(
+                'guard_inactive_on_plan',
+                'guard is inactive on your plan; this script is running UNGUARDED. Upgrade to the Team or Business plan to enable it.'
+            );
+        }
+
+        if ($verdict->blocked() && $mode === 'hard') {
+            throw new Paused($verdict);
+        }
+
+        return $verdict;
+    }
+
+    private function guardUnreachable(string $reason, string $mode, string $onUnreachable): GuardVerdict
+    {
+        $this->warner->warn(
+            'guard_unreachable',
+            "guard gate unreachable ({$reason}); applying on_unreachable={$onUnreachable}."
+        );
+
+        $verdict = $onUnreachable === 'block'
+            ? GuardVerdict::synthetic('block', 'unreachable')
+            : GuardVerdict::synthetic('allow');
+
+        if ($verdict->blocked() && $mode === 'hard') {
+            throw new Paused($verdict);
+        }
+
+        return $verdict;
     }
 
     /**

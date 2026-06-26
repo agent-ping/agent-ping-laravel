@@ -74,11 +74,30 @@ class AgentPingServiceProvider extends ServiceProvider
 
         $this->app->singleton(AgentPing::class, function (Application $app) {
             $config = $app['config']->get('agentping');
+            $apiKey = (string) ($config['api_key'] ?? '');
+            $region = Ids::extractRegion($apiKey);
+
+            // The guard gate lives on the control plane, not the ingest edge.
+            $controlUrl = (string) ($config['control_url'] ?? '');
+            if ($controlUrl === '') {
+                $controlUrl = $region === 'eu'
+                    ? 'https://agentping.io'
+                    : "https://{$region}.agentping.io";
+            }
+            $controlClient = new HttpClient(
+                http: $app->make(HttpFactory::class),
+                warner: $app->make(WarnOnce::class),
+                apiKey: $apiKey,
+                baseUrl: $controlUrl,
+                timeout: (float) ($config['request_timeout'] ?? 2.0),
+                userAgent: (string) ($config['user_agent'] ?? 'agentping-laravel/0.1.0'),
+            );
 
             return new AgentPing(
                 queue: $app->make(BoundedQueue::class),
                 worker: $app->make(FlushWorker::class),
                 client: $app->make(HttpClient::class),
+                controlClient: $controlClient,
                 warner: $app->make(WarnOnce::class),
                 apiKey: $config['api_key'] ?? null,
                 defaultAgent: (string) ($config['default_agent'] ?? 'ai-agent'),

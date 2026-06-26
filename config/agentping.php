@@ -9,6 +9,12 @@ return [
     // Set AGENTPING_BASE_URL explicitly only when self-hosting or testing.
     'base_url' => env('AGENTPING_BASE_URL'),
 
+    // The guard gate (guard-checks-spec) is served by the control plane, not
+    // the ingest edge, so it has its own base URL. Derived from the key's
+    // region when left blank: apk_eu_* -> https://agentping.io (apex);
+    // other regions -> https://{region}.agentping.io.
+    'control_url' => env('AGENTPING_CONTROL_URL'),
+
     'queue_size' => (int) env('AGENTPING_QUEUE_SIZE', 1000),
 
     'flush_interval' => (float) env('AGENTPING_FLUSH_INTERVAL', 2.0),

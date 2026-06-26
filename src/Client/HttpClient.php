@@ -102,4 +102,60 @@ class HttpClient
             'error' => null,
         ];
     }
+
+    /**
+     * POST and return the raw result, emitting no warnings. The guard gate
+     * (guard-checks-spec) uses this so it can own its own
+     * allow/block/unreachable translation rather than the telemetry
+     * warn-and-retry semantics of post(). A transport error surfaces as
+     * status 0 with a non-null error.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array{status: int, body: array<string, mixed>, retry_after: ?float, error: ?string}
+     */
+    public function postRaw(string $path, array $body): array
+    {
+        $url = rtrim($this->baseUrl, '/') . $path;
+
+        try {
+            /** @var Response $response */
+            $response = $this->http
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'Content-Type' => 'application/json',
+                    'User-Agent' => $this->userAgent,
+                ])
+                ->timeout((int) max(1, ceil($this->timeout)))
+                ->connectTimeout((int) max(1, ceil($this->timeout)))
+                ->post($url, $body);
+        } catch (\Throwable $e) {
+            return ['status' => 0, 'body' => [], 'retry_after' => null, 'error' => $e->getMessage()];
+        }
+
+        $retryAfter = null;
+        $ra = $response->header('Retry-After');
+        if ($ra !== null && $ra !== '') {
+            $raVal = filter_var($ra, FILTER_VALIDATE_FLOAT);
+            if ($raVal !== false) {
+                $retryAfter = (float) $raVal;
+            }
+        }
+
+        $parsed = [];
+        try {
+            $parsed = $response->json() ?? [];
+            if (! is_array($parsed)) {
+                $parsed = [];
+            }
+        } catch (\Throwable) {
+            $parsed = [];
+        }
+
+        return [
+            'status' => $response->status(),
+            'body' => $parsed,
+            'retry_after' => $retryAfter,
+            'error' => null,
+        ];
+    }
 }

@@ -84,6 +84,46 @@ AgentPing::heartbeat('daily-summary',
 );
 ```
 
+### Guard (spend safety net)
+
+Put a guard at the top of a scheduled command or queued job. It makes one
+synchronous call to AgentPing, which checks your configured rules against your
+real cumulative spend, and refuses to start the run if a rule is tripped (or if
+an operator has paused the agent from the dashboard). Guard is on the Team and
+Business plans.
+
+```php
+use AgentPing\Laravel\Exceptions\Paused;
+
+// Hard mode (default): throws Paused on a block, so the job does not proceed.
+try {
+    AgentPing::guardCheck(
+        customerRef: 'acme-corp',
+        agent: 'nightly-summariser',
+        function: 'run',
+    );
+} catch (Paused $e) {
+    logger()->warning('guard blocked', ['by' => $e->verdict->blockedBy]);
+    return;
+}
+
+// Soft mode: branch on the verdict instead of throwing.
+$verdict = AgentPing::guardCheck(agent: 'nightly-summariser', mode: 'soft');
+if ($verdict->blocked()) {
+    return;
+}
+```
+
+By default a guard fails closed: a block throws `Paused`, and
+`onUnreachable: 'block'` means the job does not run unless the gate confirms it
+is safe. That couples your scheduled runs to AgentPing's uptime; pass
+`onUnreachable: 'allow'` to run when the gate is unreachable.
+
+A guard at the top of a script protects against the next invocation starting,
+not against one run that passes the check and then loops forever. Call
+`guardCheck` at several points to turn it into a series of gates. Thresholds are
+set in USD.
+
 ### Inspect the queue
 
 ```php

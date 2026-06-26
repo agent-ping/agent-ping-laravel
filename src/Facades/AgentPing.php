@@ -3,6 +3,7 @@
 namespace AgentPing\Laravel\Facades;
 
 use AgentPing\Laravel\AgentPing as AgentPingService;
+use AgentPing\Laravel\Guard\GuardVerdict;
 use AgentPing\Laravel\Run;
 use Illuminate\Support\Facades\Facade;
 
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static void resetScope()
  * @method static string defaultAgentName()
  * @method static string heartbeat(string $agent, string $status = 'ok', ?float $costUsd = null, ?int $durationMs = null, ?array $metadata = null)
+ * @method static GuardVerdict guardCheck(?string $customerRef = null, ?string $agent = null, ?string $function = null, ?string $environment = null, string $mode = 'hard', string $onUnreachable = 'block')
  * @method static int flush(float $timeoutSeconds = 5.0)
  * @method static array status()
  * @method static string region()
