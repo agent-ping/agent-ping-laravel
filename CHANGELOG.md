@@ -7,8 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-17
+
 ### Added
 
+- `AgentPing::guardCheck()`, a synchronous call to the control plane that
+  checks your spend rules and the dashboard pause switch before a run
+  starts. Hard mode throws `AgentPing\Laravel\Exceptions\Paused`; soft
+  mode returns a `GuardVerdict`. Fails closed by default; pass
+  `onUnreachable: 'allow'` to run when the gate cannot be reached. Uses a
+  region-derived `control_url` (`AGENTPING_CONTROL_URL` to override).
 - Full `laravel/ai` lifecycle coverage. Listeners for `StepCompleted`,
   `StepFailed`, `AgentFailed`, `ToolInvoked`, `ToolFailed`,
   `ProviderFailedOver` and `AgentFailedOver` join the existing
@@ -27,6 +35,20 @@ adheres to [Semantic Versioning](https://semver.org/).
 - A failed invocation now finishes its synthetic run with status `error`
   instead of leaving it open.
 - Events from nested agent invocations attach to the outer run.
+
+## [0.1.1] - 2026-06-06
+
+### Fixed
+
+- Named `Agent` classes now auto-name their runs. laravel/ai exposes the
+  agent as an object on the prompt, which the resolver did not read, so
+  every run fell back to the default agent name. The class basename is
+  snake-cased; the anonymous `agent()` helper still uses the default.
+
+### Added
+
+- `AgentPing::useAgent($name)` to override the agent name for the
+  current scope.
 
 ## [0.1.0] - 2026-05-17
 
@@ -80,5 +102,7 @@ The 0.x line is pre-1.0. Public API may change before 1.0.0. We do not
 break the wire format between SDK and ingest without a version bump and
 a migration note here.
 
-[Unreleased]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/agent-ping/agent-ping-laravel/releases/tag/v0.1.0
