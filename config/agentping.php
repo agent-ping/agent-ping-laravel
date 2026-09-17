@@ -39,6 +39,13 @@ return [
     // AgentPing::agent('name', fn () => ...).
     'default_agent' => env('AGENTPING_DEFAULT_AGENT', 'ai-agent'),
 
+    // Send tool arguments and results on tool_call events from laravel/ai.
+    // Prompt and completion text are never sent. Turn this off if tool
+    // payloads can carry customer data you do not want in AgentPing.
+    'capture_tool_payloads' => filter_var(env('AGENTPING_CAPTURE_TOOL_PAYLOADS', true), FILTER_VALIDATE_BOOLEAN),
+
+    'tool_payload_max_chars' => (int) env('AGENTPING_TOOL_PAYLOAD_MAX_CHARS', 4000),
+
     'user_agent' => 'agentping-laravel/0.1.0',
 
 ];

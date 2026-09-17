@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Full `laravel/ai` lifecycle coverage. Listeners for `StepCompleted`,
+  `StepFailed`, `AgentFailed`, `ToolInvoked`, `ToolFailed`,
+  `ProviderFailedOver` and `AgentFailedOver` join the existing
+  `AgentPrompted`, `AgentStreamed` and `EmbeddingsGenerated` listeners,
+  so a multi-step agent invocation becomes a run timeline of per-step
+  `llm_call`, `tool_call`, failover `step` and `error` events.
+- `AGENTPING_CAPTURE_TOOL_PAYLOADS` (default `true`) and
+  `AGENTPING_TOOL_PAYLOAD_MAX_CHARS` (default `4000`) control whether
+  tool arguments and results are sent as `tool_call` input and output.
+- Streamed prompts carry `stream: true` on their `llm_call`.
+
+### Changed
+
+- When step events are seen for an invocation, `AgentPrompted` no longer
+  emits its own aggregate `llm_call`, so tokens are priced once.
+- A failed invocation now finishes its synthetic run with status `error`
+  instead of leaving it open.
+- Events from nested agent invocations attach to the outer run.
+
 ## [0.1.0] - 2026-05-17
 
 Initial public release.

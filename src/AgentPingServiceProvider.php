@@ -4,8 +4,13 @@ namespace AgentPing\Laravel;
 
 use AgentPing\Laravel\Client\HttpClient;
 use AgentPing\Laravel\Console\FlushCommand;
+use AgentPing\Laravel\Listeners\HandleAgentFailed;
 use AgentPing\Laravel\Listeners\HandleAgentPrompted;
 use AgentPing\Laravel\Listeners\HandleEmbeddingsGenerated;
+use AgentPing\Laravel\Listeners\HandleProviderFailedOver;
+use AgentPing\Laravel\Listeners\HandleStepCompleted;
+use AgentPing\Laravel\Listeners\HandleStepFailed;
+use AgentPing\Laravel\Listeners\HandleToolInvoked;
 use AgentPing\Laravel\Listeners\RecordPromptStart;
 use AgentPing\Laravel\Queue\BoundedQueue;
 use AgentPing\Laravel\Queue\FlushWorker;
@@ -25,6 +30,23 @@ class AgentPingServiceProvider extends ServiceProvider
     public const AI_EVENT_EMBEDDINGS = 'Laravel\\Ai\\Events\\EmbeddingsGenerated';
 
     public const AI_EVENT_PROMPTING = 'Laravel\\Ai\\Events\\PromptingAgent';
+
+    public const AI_EVENT_FAILED = 'Laravel\\Ai\\Events\\AgentFailed';
+
+    public const AI_EVENT_STEP_COMPLETED = 'Laravel\\Ai\\Events\\StepCompleted';
+
+    public const AI_EVENT_STEP_FAILED = 'Laravel\\Ai\\Events\\StepFailed';
+
+    public const AI_EVENT_TOOL_INVOKED = 'Laravel\\Ai\\Events\\ToolInvoked';
+
+    public const AI_EVENT_TOOL_FAILED = 'Laravel\\Ai\\Events\\ToolFailed';
+
+    public const AI_EVENT_PROVIDER_FAILED_OVER = 'Laravel\\Ai\\Events\\ProviderFailedOver';
+
+    // Subclass of ProviderFailedOver that carries the invocation id. Laravel's
+    // dispatcher does not fan a subclass event out to its parent's listeners,
+    // so both names are registered.
+    public const AI_EVENT_AGENT_FAILED_OVER = 'Laravel\\Ai\\Events\\AgentFailedOver';
 
     public const QUEUE_EVENT_PROCESSED = 'Illuminate\\Queue\\Events\\JobProcessed';
 
@@ -146,8 +168,46 @@ class AgentPingServiceProvider extends ServiceProvider
 
         if (class_exists(self::AI_EVENT_STREAMED)) {
             $events->listen(self::AI_EVENT_STREAMED, function (object $event): void {
-                $this->app->make(HandleAgentPrompted::class)->handle($event);
+                $this->app->make(HandleAgentPrompted::class)->handle($event, stream: true);
             });
+        }
+
+        if (class_exists(self::AI_EVENT_FAILED)) {
+            $events->listen(self::AI_EVENT_FAILED, function (object $event): void {
+                $this->app->make(HandleAgentFailed::class)->handle($event);
+            });
+        }
+
+        if (class_exists(self::AI_EVENT_STEP_COMPLETED)) {
+            $events->listen(self::AI_EVENT_STEP_COMPLETED, function (object $event): void {
+                $this->app->make(HandleStepCompleted::class)->handle($event);
+            });
+        }
+
+        if (class_exists(self::AI_EVENT_STEP_FAILED)) {
+            $events->listen(self::AI_EVENT_STEP_FAILED, function (object $event): void {
+                $this->app->make(HandleStepFailed::class)->handle($event);
+            });
+        }
+
+        if (class_exists(self::AI_EVENT_TOOL_INVOKED)) {
+            $events->listen(self::AI_EVENT_TOOL_INVOKED, function (object $event): void {
+                $this->app->make(HandleToolInvoked::class)->handle($event);
+            });
+        }
+
+        if (class_exists(self::AI_EVENT_TOOL_FAILED)) {
+            $events->listen(self::AI_EVENT_TOOL_FAILED, function (object $event): void {
+                $this->app->make(HandleToolInvoked::class)->handle($event, failed: true);
+            });
+        }
+
+        foreach ([self::AI_EVENT_PROVIDER_FAILED_OVER, self::AI_EVENT_AGENT_FAILED_OVER] as $failedOver) {
+            if (class_exists($failedOver)) {
+                $events->listen($failedOver, function (object $event): void {
+                    $this->app->make(HandleProviderFailedOver::class)->handle($event);
+                });
+            }
         }
 
         if (class_exists(self::AI_EVENT_EMBEDDINGS)) {

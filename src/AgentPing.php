@@ -25,6 +25,9 @@ class AgentPing
     /** @var array<string, float> */
     private array $invocationStarts = [];
 
+    /** @var array<string, true> */
+    private array $invocationSteps = [];
+
     public function __construct(
         private readonly BoundedQueue $queue,
         private readonly FlushWorker $worker,
@@ -327,9 +330,37 @@ class AgentPing
         return $start;
     }
 
+    /**
+     * Record that a StepCompleted event already emitted an llm_call for this
+     * invocation, so the AgentPrompted listener does not price the summed
+     * usage a second time.
+     */
+    public function markInvocationSteps(string $invocationId): void
+    {
+        $this->invocationSteps[$invocationId] = true;
+    }
+
+    public function takeInvocationSteps(string $invocationId): bool
+    {
+        $seen = isset($this->invocationSteps[$invocationId]);
+        unset($this->invocationSteps[$invocationId]);
+
+        return $seen;
+    }
+
     public function bindInvocationRun(string $invocationId, Run $run): void
     {
         $this->invocationRuns[$invocationId] = $run;
+    }
+
+    /**
+     * The synthetic run bound to this invocation, if an earlier laravel/ai
+     * event created one, without releasing it. Step and tool listeners use
+     * this so every event of one prompt lands on the same run.
+     */
+    public function invocationRun(string $invocationId): ?Run
+    {
+        return $this->invocationRuns[$invocationId] ?? null;
     }
 
     public function takeInvocationRun(string $invocationId): ?Run

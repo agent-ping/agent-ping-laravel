@@ -10,8 +10,8 @@ lifecycle, never crashes user code, and ships telemetry on a 2-second
 batch cycle to the regional ingest host that matches your API key.
 
 If your app uses [`laravel/ai`](https://github.com/laravel/ai), every
-prompt, stream, and embedding is reported to AgentPing automatically.
-No user code changes.
+prompt, model step, tool call, failover, failure, and embedding is
+reported to AgentPing automatically. No user code changes.
 
 ## Install
 
@@ -145,15 +145,34 @@ php artisan agentping:flush
 
 ## Laravel AI integration
 
-If you install `laravel/ai`, the SDK auto-registers listeners for `AgentPrompted`, `AgentStreamed`, and `EmbeddingsGenerated`. Every prompt produces an `llm_call` event on the current AgentPing run; if there is no open run, a synthetic run keyed by the invocation id is created and auto-finished.
+If you install `laravel/ai`, the SDK auto-registers listeners for the SDK's lifecycle events and turns each agent invocation into a run timeline. Events attach to the current AgentPing run when your app opened one; otherwise a synthetic run keyed by the invocation id is created on the first event and finished by `AgentPrompted` or `AgentFailed`.
 
-Mapped fields:
+| laravel/ai event | AgentPing event | Notes |
+|---|---|---|
+| `StepCompleted` | `llm_call` | One per model call: provider, model, tokens, `latency_ms`, `step`, `final`, `finish_reason`, `tool_calls`. |
+| `StepFailed` | `llm_call` with `status: error` | Message and exception class, no tokens. The run is not finished; the prompt may retry or fail over. |
+| `AgentPrompted`, `AgentStreamed` | `llm_call` (single-step only) | When step events were seen the aggregate is skipped so tokens are never counted twice. Streams carry `stream: true`. |
+| `AgentFailed` | `error` | Message, exception class, `latency_ms`. Finishes a synthetic run with status `error`. |
+| `ToolInvoked`, `ToolFailed` | `tool_call` | Tool name, `status`, `tool_invocation_id`, `latency_ms`, and the arguments and result as `input` / `output`. |
+| `ProviderFailedOver`, `AgentFailedOver` | `step` with `kind: provider_failover` | The provider and model given up on, plus `reason`. Not an error; the next `llm_call` shows what served the prompt. |
+| `EmbeddingsGenerated` | `llm_call` | Provider, model and input tokens. |
 
-- `data.provider`, `data.model` from the response meta.
+Mapped fields on `llm_call`:
+
+- `data.provider`, `data.model` from the response meta, falling back to the event's provider and model.
 - `data.input_tokens`, `data.output_tokens` from the usage value object.
 - `data.cached_input_tokens`, `data.cache_creation_input_tokens`, `data.reasoning_tokens` are emitted only when non-zero.
-- `data.latency_ms` measured from `PromptingAgent` to `AgentPrompted`.
+- `data.latency_ms` from the SDK's own step timing, or from `PromptingAgent` to `AgentPrompted` for single-step prompts.
 - `cost_usd` is never sent; the AgentPing server computes it from the rate card.
+
+Prompt and completion text are never sent. Tool arguments and results are, because they are what makes a tool call readable on the timeline. Turn that off, or shorten it, if tools handle sensitive data:
+
+```env
+AGENTPING_CAPTURE_TOOL_PAYLOADS=false
+AGENTPING_TOOL_PAYLOAD_MAX_CHARS=4000
+```
+
+Nested invocations (an agent calling another agent through a tool) attach to the outer run rather than starting their own, so one user request stays one run. The run is named after the outermost agent.
 
 To disable auto-instrumentation:
 
