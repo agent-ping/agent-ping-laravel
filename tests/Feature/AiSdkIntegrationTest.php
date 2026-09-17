@@ -78,7 +78,8 @@ class AiSdkIntegrationTest extends TestCase
             $data = $evt['data'];
             $okBase = $data['provider'] === 'anthropic'
                 && $data['model'] === 'claude-opus-4-5'
-                && $data['input_tokens'] === 1200
+                // Anthropic reports 1200 net of the 300 cached; ingest wants gross.
+                && $data['input_tokens'] === 1500
                 && $data['output_tokens'] === 480
                 && ($data['cached_input_tokens'] ?? null) === 300
                 && ! array_key_exists('cache_creation_input_tokens', $data)
@@ -92,6 +93,56 @@ class AiSdkIntegrationTest extends TestCase
             return $okBase;
         });
         $this->assertTrue($sawLlmCall, 'Did not see an llm_call event with mapped payload.');
+    }
+
+    public function test_openai_prompt_tokens_are_already_gross_and_pass_through(): void
+    {
+        Http::fake([
+            '*' => Http::response([], 202),
+        ]);
+
+        $run = AgentPingFacade::run('support-triage');
+
+        $response = (object) [
+            'usage' => (object) [
+                'promptTokens' => 1200,
+                'completionTokens' => 480,
+                'cacheReadInputTokens' => 300,
+                'cacheWriteInputTokens' => 0,
+                'reasoningTokens' => 0,
+            ],
+            'meta' => (object) ['provider' => 'openai', 'model' => 'gpt-5-mini'],
+            'text' => 'hello',
+        ];
+
+        /** @var HandleAgentPrompted $handler */
+        $handler = $this->app->make(HandleAgentPrompted::class);
+        $handler->handle((object) [
+            'invocationId' => 'inv-openai-1',
+            'prompt' => new \stdClass,
+            'response' => $response,
+        ]);
+
+        $run->finish('success');
+        AgentPingFacade::flush(5.0);
+
+        $saw = false;
+        Http::assertSent(function ($request) use (&$saw) {
+            if (! str_contains($request->url(), '/events')) {
+                return false;
+            }
+            foreach ($request['events'] ?? [] as $evt) {
+                if (($evt['type'] ?? null) === 'llm_call'
+                    && $evt['data']['provider'] === 'openai'
+                    && $evt['data']['input_tokens'] === 1200
+                    && $evt['data']['cached_input_tokens'] === 300) {
+                    $saw = true;
+                }
+            }
+
+            return $saw;
+        });
+        $this->assertTrue($saw, 'Expected an OpenAI llm_call with input_tokens left at the gross 1200.');
     }
 
     public function test_agent_prompted_without_current_run_creates_synthetic_run(): void

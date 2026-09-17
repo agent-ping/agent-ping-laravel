@@ -23,8 +23,8 @@ class HandleStepCompleted extends AiSdkListener
             return;
         }
 
-        $data = $this->providerAndModel($response->meta ?? null, $event->provider ?? null, $event->model ?? null)
-            + $this->usageData($response->usage ?? null);
+        $data = $this->providerAndModel($response->meta ?? null, $event->provider ?? null, $event->model ?? null);
+        $data += $this->usageData($response->usage ?? null, $data['provider']);
 
         if (($latency = $this->latencyMs($event->time ?? null)) !== null) {
             $data['latency_ms'] = $latency;

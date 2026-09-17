@@ -120,20 +120,32 @@ abstract class AiSdkListener
      * Token counts from a laravel/ai Usage object, with the optional counters
      * left out when zero so the payload stays small.
      *
+     * input_tokens is the gross prompt size. Ingest subtracts the cached
+     * split itself when it prices a call, so it must include the cached
+     * prefix. Anthropic reports input_tokens net of the cache and Prism
+     * passes that through as promptTokens; every other provider laravel/ai
+     * ships already reports gross.
+     *
      * @return array<string, int>
      */
-    protected function usageData(mixed $usage): array
+    protected function usageData(mixed $usage, ?string $provider = null): array
     {
+        $inputTokens = (int) ($usage->promptTokens ?? 0);
+        $cacheRead = (int) ($usage->cacheReadInputTokens ?? 0);
+        $cacheWrite = (int) ($usage->cacheWriteInputTokens ?? 0);
+
+        if ($provider !== null && str_contains(strtolower($provider), 'anthropic')) {
+            $inputTokens += $cacheRead + $cacheWrite;
+        }
+
         $data = [
-            'input_tokens' => (int) ($usage->promptTokens ?? 0),
+            'input_tokens' => $inputTokens,
             'output_tokens' => (int) ($usage->completionTokens ?? 0),
         ];
 
-        $cacheRead = (int) ($usage->cacheReadInputTokens ?? 0);
         if ($cacheRead > 0) {
             $data['cached_input_tokens'] = $cacheRead;
         }
-        $cacheWrite = (int) ($usage->cacheWriteInputTokens ?? 0);
         if ($cacheWrite > 0) {
             $data['cache_creation_input_tokens'] = $cacheWrite;
         }

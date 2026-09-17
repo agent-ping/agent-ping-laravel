@@ -9,6 +9,16 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] - 2026-09-17
 
+### Fixed
+
+- `input_tokens` on Anthropic calls is now the gross prompt size,
+  including the cached prefix. Anthropic reports `input_tokens` net of
+  the cache and `laravel/ai` passes that through as `promptTokens`;
+  earlier releases forwarded it as-is. Ingest subtracts
+  `cached_input_tokens` itself when it prices a call, so cached
+  Anthropic calls were priced too low. OpenAI and Gemini already report
+  gross and are unchanged.
+
 ### Added
 
 - `AgentPing::guardCheck()`, a synchronous call to the control plane that

@@ -38,8 +38,8 @@ class HandleAgentPrompted extends AiSdkListener
         $this->sdk->takeInvocationRun($invocationId);
 
         if (! $stepped) {
-            $data = $this->providerAndModel($response->meta ?? null)
-                + $this->usageData($response->usage ?? null);
+            $data = $this->providerAndModel($response->meta ?? null);
+            $data += $this->usageData($response->usage ?? null, $data['provider']);
 
             if ($start !== null) {
                 $data['latency_ms'] = (int) max(0, round((microtime(true) - $start) * 1000));
