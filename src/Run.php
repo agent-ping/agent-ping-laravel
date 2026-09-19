@@ -93,18 +93,29 @@ class Run
     /**
      * @param  array<string, mixed>|null  $data
      */
-    public function event(string $type, ?array $data = null): string
+    /**
+     * Append an event to the run.
+     *
+     * @param  array<string, mixed>|null  $data
+     * @param  int|null  $turn  Which exchange of a conversation this belongs to,
+     *                          counting from 1. One turn is often several events --
+     *                          call the model, run a tool, call it again -- and this
+     *                          is what groups them. Omit outside a conversation.
+     */
+    public function event(string $type, ?array $data = null, ?int $turn = null): string
     {
         $evtId = Ids::newId('evt', $this->region);
+        $entry = [
+            'external_id' => $evtId,
+            'type' => $type,
+            'ts' => self::iso(Carbon::now()),
+            'data' => $data ?? [],
+        ];
+        if ($turn !== null) {
+            $entry['turn'] = $turn;
+        }
         $this->sdk->enqueue('/v1/runs/' . $this->id . '/events', [
-            'events' => [
-                [
-                    'external_id' => $evtId,
-                    'type' => $type,
-                    'ts' => self::iso(Carbon::now()),
-                    'data' => $data ?? [],
-                ],
-            ],
+            'events' => [$entry],
         ]);
 
         return $evtId;
