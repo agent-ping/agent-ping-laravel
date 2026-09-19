@@ -25,10 +25,23 @@ class Run
         public readonly ?string $feature = null,
         public readonly ?array $metadata = null,
         public readonly ?string $parentRunId = null,
+        /**
+         * Close the run automatically once no event has arrived for this long
+         * (60-86400 seconds). For callers that cannot be relied on to finish the
+         * run, and it makes the run resumable: a later event reopens it.
+         */
+        public readonly ?int $idleTimeoutSeconds = null,
+        /**
+         * What that silence meant. The server defaults to "timeout" -- we stopped
+         * waiting, we do not know how it went. A chat should pass "success".
+         */
+        public readonly ?string $idleTimeoutStatus = null,
+        /** @var array{0: string, 1: string}|null Reuse a known run id and start time. */
+        ?array $resume = null,
     ) {
         $this->region = $sdk->region();
-        $this->id = Ids::newId('run', $this->region);
-        $this->startedAt = self::iso(Carbon::now());
+        $this->id = $resume[0] ?? Ids::newId('run', $this->region);
+        $this->startedAt = $resume[1] ?? self::iso(Carbon::now());
 
         $body = [
             'id' => $this->id,
@@ -46,6 +59,12 @@ class Run
         }
         if ($parentRunId !== null && $parentRunId !== '') {
             $body['parent_run_id'] = $parentRunId;
+        }
+        if ($idleTimeoutSeconds !== null) {
+            $body['idle_timeout_seconds'] = $idleTimeoutSeconds;
+            if ($idleTimeoutStatus !== null) {
+                $body['idle_timeout_status'] = $idleTimeoutStatus;
+            }
         }
 
         $sdk->enqueue('/v1/runs', $body);
