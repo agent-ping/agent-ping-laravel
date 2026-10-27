@@ -30,6 +30,38 @@ class RunLifecycleTest extends TestCase
         $this->assertSame(1, $sdk->status()['queue_size']);
     }
 
+    public function test_run_version_defaults_from_config_and_a_run_can_override_it(): void
+    {
+        Http::fake(['*' => Http::response([], 202)]);
+        config()->set('agentping.version', ' 2026.10.27 ');
+
+        $byDefault = AgentPingFacade::run('triage');
+        $override = AgentPingFacade::run('triage', version: 'prompt-v7');
+        $chat = AgentPingFacade::conversation('support-chat', AgentPingFacade::newSessionId(), version: 'v3');
+        AgentPingFacade::flush(5.0);
+
+        $starts = [];
+        foreach (Http::recorded(fn ($request) => str_ends_with($request->url(), '/v1/runs')) as [$request]) {
+            $starts[$request['id']] = $request->data();
+        }
+        $this->assertSame('2026.10.27', $starts[$byDefault->id()]['version']);
+        $this->assertSame('prompt-v7', $starts[$override->id()]['version']);
+        $this->assertSame('v3', $starts[$chat->id()]['version']);
+    }
+
+    public function test_run_version_is_omitted_when_nothing_sets_it(): void
+    {
+        Http::fake(['*' => Http::response([], 202)]);
+        config()->set('agentping.version', null);
+
+        $run = AgentPingFacade::run('triage');
+        AgentPingFacade::flush(5.0);
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/v1/runs')
+            && $request['id'] === $run->id()
+            && ! array_key_exists('version', $request->data()));
+    }
+
     public function test_event_and_finish_enqueue_separate_payloads(): void
     {
         Http::fake();

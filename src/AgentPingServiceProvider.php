@@ -79,7 +79,7 @@ class AgentPingServiceProvider extends ServiceProvider
                 apiKey: $apiKey,
                 baseUrl: $baseUrl,
                 timeout: (float) ($config['request_timeout'] ?? 2.0),
-                userAgent: (string) ($config['user_agent'] ?? 'agentping-laravel/0.1.0'),
+                userAgent: (string) ($config['user_agent'] ?? 'agentping-laravel/0.3.0'),
             );
         });
 
@@ -112,7 +112,7 @@ class AgentPingServiceProvider extends ServiceProvider
                 apiKey: $apiKey,
                 baseUrl: $controlUrl,
                 timeout: (float) ($config['request_timeout'] ?? 2.0),
-                userAgent: (string) ($config['user_agent'] ?? 'agentping-laravel/0.1.0'),
+                userAgent: (string) ($config['user_agent'] ?? 'agentping-laravel/0.3.0'),
             );
 
             return new AgentPing(

@@ -217,6 +217,83 @@ class AiSdkEventSurfaceTest extends TestCase
         $this->assertSame(10, $events[0]['data']['input_tokens']);
     }
 
+    public function test_prompt_and_completion_are_not_sent_by_default(): void
+    {
+        $this->app->make(HandleAgentPrompted::class)->handle((object) [
+            'invocationId' => 'inv-content-off',
+            'prompt' => (object) ['agent' => 'App\\Agents\\WriterAgent', 'prompt' => 'Refund request from Acme'],
+            'response' => (object) [
+                'text' => 'Route to billing.',
+                'usage' => $this->usage(10, 5),
+                'meta' => (object) ['provider' => 'openai', 'model' => 'gpt-5'],
+            ],
+        ]);
+
+        $events = $this->sentEvents();
+        $this->assertCount(1, $events);
+        $this->assertArrayNotHasKey('input', $events[0]['data']);
+        $this->assertArrayNotHasKey('output', $events[0]['data']);
+        $this->assertArrayNotHasKey('system_instructions', $events[0]['data']);
+    }
+
+    public function test_content_capture_sends_messages_instructions_and_text_clipped(): void
+    {
+        config()->set('agentping.capture_llm_content', true);
+        config()->set('agentping.llm_content_max_chars', 12);
+
+        $agent = new class
+        {
+            public function instructions(): string
+            {
+                return 'Be terse.';
+            }
+        };
+
+        $this->app->make(HandleAgentPrompted::class)->handle((object) [
+            'invocationId' => 'inv-content-on',
+            'prompt' => (object) [
+                'agent' => $agent,
+                'prompt' => 'ignored when messages are present',
+                'messages' => [
+                    (object) ['role' => 'user', 'content' => 'Refund request from Acme'],
+                    ['role' => 'assistant', 'content' => 'Checking.'],
+                ],
+            ],
+            'response' => (object) [
+                'text' => 'Route to billing.',
+                'usage' => $this->usage(10, 5),
+                'meta' => (object) ['provider' => 'openai', 'model' => 'gpt-5'],
+            ],
+        ]);
+
+        $this->app->make(HandleStepCompleted::class)->handle((object) [
+            'invocationId' => 'inv-content-step',
+            'agent' => $this->agent(),
+            'stepNumber' => 1,
+            'isFinalStep' => true,
+            'time' => 50.0,
+            'response' => (object) [
+                'text' => 'Step says hi.',
+                'usage' => $this->usage(3, 2),
+                'meta' => (object) ['provider' => 'openai', 'model' => 'gpt-5'],
+            ],
+        ]);
+
+        $events = $this->sentEvents();
+        $this->assertCount(2, $events);
+        $prompted = $events[0]['data'];
+        $this->assertSame('Be terse.', $prompted['system_instructions']);
+        $this->assertSame([
+            ['role' => 'user', 'content' => 'Refund reque...'],
+            ['role' => 'assistant', 'content' => 'Checking.'],
+        ], $prompted['input']);
+        $this->assertSame('Route to bil...', $prompted['output']);
+
+        $step = $events[1]['data'];
+        $this->assertSame('Step says hi', rtrim($step['output'], '.'), 'a step carries its completion, clipped');
+        $this->assertArrayNotHasKey('input', $step, 'a step event has no prompt of its own');
+    }
+
     public function test_step_marker_is_consumed_so_the_next_invocation_is_priced(): void
     {
         $sdk = $this->app->make(AgentPing::class);

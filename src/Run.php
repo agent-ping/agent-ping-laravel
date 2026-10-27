@@ -38,6 +38,11 @@ class Run
         public readonly ?string $idleTimeoutStatus = null,
         /** @var array{0: string, 1: string}|null Reuse a known run id and start time. */
         ?array $resume = null,
+        /**
+         * The build or prompt version that produced this run (up to 64
+         * characters). Falls back to config('agentping.version').
+         */
+        public readonly ?string $version = null,
     ) {
         $this->region = $sdk->region();
         $this->id = $resume[0] ?? Ids::newId('run', $this->region);
@@ -53,6 +58,10 @@ class Run
         }
         if ($feature !== null) {
             $body['feature'] = $feature;
+        }
+        $resolvedVersion = trim((string) ($version ?? $sdk->defaultVersion()));
+        if ($resolvedVersion !== '') {
+            $body['version'] = $resolvedVersion;
         }
         if ($metadata !== null && $metadata !== []) {
             $body['metadata'] = $metadata;

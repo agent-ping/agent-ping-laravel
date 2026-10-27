@@ -168,6 +168,7 @@ class AgentPing
         ?string $customerId = null,
         ?string $feature = null,
         ?array $metadata = null,
+        ?string $version = null,
     ): Run {
         if (preg_match('/^[0-9a-f]{32}$/', $sessionId) !== 1) {
             throw new \InvalidArgumentException(
@@ -188,9 +189,10 @@ class AgentPing
             idleTimeoutSeconds: $idleTimeoutSeconds,
             idleTimeoutStatus: $idleTimeoutStatus,
             resume: [
-                'run_'.$this->region().'_'.$sessionId,
+                'run_' . $this->region() . '_' . $sessionId,
                 Run::iso(Carbon::createFromTimestampMs($startedMs, 'UTC')),
             ],
+            version: $version,
         );
         $this->currentRun = $run;
 
@@ -209,6 +211,7 @@ class AgentPing
         ?string $feature = null,
         ?array $metadata = null,
         ?string $parentRunId = null,
+        ?string $version = null,
     ): Run {
         $parent = $parentRunId ?? ($_ENV['AGENTPING_PARENT_RUN'] ?? getenv('AGENTPING_PARENT_RUN') ?: null);
         $run = new Run(
@@ -218,6 +221,7 @@ class AgentPing
             feature: $feature,
             metadata: $metadata,
             parentRunId: $parent !== false && $parent !== '' ? $parent : null,
+            version: $version,
         );
         $this->currentRun = $run;
 
@@ -266,6 +270,17 @@ class AgentPing
      * active and the call cannot be attributed to a named Agent class (e.g. the
      * anonymous agent() helper). Set per-app via AGENTPING_DEFAULT_AGENT.
      */
+    /**
+     * The version label runs start with when they set none: config
+     * agentping.version (AGENTPING_VERSION), or null for no label.
+     */
+    public function defaultVersion(): ?string
+    {
+        $version = trim((string) config('agentping.version', ''));
+
+        return $version === '' ? null : $version;
+    }
+
     public function defaultAgentName(): string
     {
         return $this->defaultAgent;
@@ -289,9 +304,10 @@ class AgentPing
         ?string $customerId = null,
         ?string $feature = null,
         ?array $metadata = null,
+        ?string $version = null,
     ): mixed {
         $previous = $this->currentRun;
-        $run = $this->run($name, customerId: $customerId, feature: $feature, metadata: $metadata);
+        $run = $this->run($name, customerId: $customerId, feature: $feature, metadata: $metadata, version: $version);
 
         try {
             $result = $callback($run);

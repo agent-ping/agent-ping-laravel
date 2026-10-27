@@ -47,6 +47,7 @@ class HandleAgentPrompted extends AiSdkListener
             if ($this->stream) {
                 $data['stream'] = true;
             }
+            $data += $this->contentData($prompt, $response);
 
             $run->event('llm_call', $data);
         }

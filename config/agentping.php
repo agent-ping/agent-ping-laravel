@@ -39,13 +39,27 @@ return [
     // AgentPing::agent('name', fn () => ...).
     'default_agent' => env('AGENTPING_DEFAULT_AGENT', 'ai-agent'),
 
+    // The build or prompt version this deployment runs, applied to every run
+    // that does not set its own (up to 64 characters). The Spend and Verify
+    // charts mark where each new version was first seen, so a cost or score
+    // shift reads against the deploy that preceded it.
+    'version' => env('AGENTPING_VERSION'),
+
     // Send tool arguments and results on tool_call events from laravel/ai.
-    // Prompt and completion text are never sent. Turn this off if tool
-    // payloads can carry customer data you do not want in AgentPing.
+    // Turn this off if tool payloads can carry customer data you do not want
+    // in AgentPing.
     'capture_tool_payloads' => filter_var(env('AGENTPING_CAPTURE_TOOL_PAYLOADS', true), FILTER_VALIDATE_BOOLEAN),
 
     'tool_payload_max_chars' => (int) env('AGENTPING_TOOL_PAYLOAD_MAX_CHARS', 4000),
 
-    'user_agent' => 'agentping-laravel/0.1.0',
+    // Send the prompt and completion on llm_call events from laravel/ai:
+    // `input` as {role, content} messages, `output` as text and
+    // `system_instructions`. Off by default; turn it on only when prompts may
+    // leave your infrastructure. Each piece is clipped at the cap.
+    'capture_llm_content' => filter_var(env('AGENTPING_CAPTURE_LLM_CONTENT', false), FILTER_VALIDATE_BOOLEAN),
+
+    'llm_content_max_chars' => (int) env('AGENTPING_LLM_CONTENT_MAX_CHARS', 4000),
+
+    'user_agent' => 'agentping-laravel/0.3.0',
 
 ];

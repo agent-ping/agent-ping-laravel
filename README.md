@@ -37,6 +37,7 @@ Optional:
 AGENTPING_QUEUE_SIZE=1000
 AGENTPING_BATCH_SIZE=50
 AGENTPING_LISTEN_TO_AI_SDK=true
+AGENTPING_VERSION=2026.10.27   # build or prompt version every run starts with
 ```
 
 Publish the config if you want to override defaults:
@@ -165,12 +166,21 @@ Mapped fields on `llm_call`:
 - `data.latency_ms` from the SDK's own step timing, or from `PromptingAgent` to `AgentPrompted` for single-step prompts.
 - `cost_usd` is never sent; the AgentPing server computes it from the rate card.
 
-Prompt and completion text are never sent. Tool arguments and results are, because they are what makes a tool call readable on the timeline. Turn that off, or shorten it, if tools handle sensitive data:
+Tool arguments and results are sent, because they are what makes a tool call readable on the timeline. Turn that off, or shorten it, if tools handle sensitive data:
 
 ```env
 AGENTPING_CAPTURE_TOOL_PAYLOADS=false
 AGENTPING_TOOL_PAYLOAD_MAX_CHARS=4000
 ```
+
+Prompt and completion text are off by default. Turn them on and each `llm_call` from `AgentPrompted` and `AgentStreamed` carries `input` (the prompt's messages, or the user prompt, as `{role, content}`), `system_instructions` from the agent, and `output` from the response text; `StepCompleted` carries the completion only. Each piece is clipped at the cap, and the run page shows them as messages:
+
+```env
+AGENTPING_CAPTURE_LLM_CONTENT=true
+AGENTPING_LLM_CONTENT_MAX_CHARS=4000
+```
+
+Pass `version:` to `AgentPing::run()`, `agent()` or `conversation()` to label one run with a different build or prompt version than `AGENTPING_VERSION`.
 
 Nested invocations (an agent calling another agent through a tool) attach to the outer run rather than starting their own, so one user request stays one run. The run is named after the outermost agent.
 

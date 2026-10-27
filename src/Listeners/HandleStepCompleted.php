@@ -46,6 +46,9 @@ class HandleStepCompleted extends AiSdkListener
             $data['tool_calls'] = count($toolCalls);
         }
 
+        // A step has no prompt of its own on the event; the completion does.
+        $data += $this->contentData(null, $response);
+
         [$run] = $this->runFor($invocationId, $event->agent ?? null);
         $run->event('llm_call', $data);
         $this->sdk->markInvocationSteps($invocationId);

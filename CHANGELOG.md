@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `AGENTPING_VERSION` (config `agentping.version`) labels every run with the
+  build or prompt version that produced it; `AgentPing::run()`,
+  `AgentPing::agent()` and `AgentPing::conversation()` take a `version` to
+  override it per run. The dashboard's Spend and Verify charts mark where each
+  new version was first seen.
+- `AGENTPING_CAPTURE_LLM_CONTENT=true` sends the prompt and completion on the
+  `llm_call` events built from laravel/ai: `input` as {role, content} messages
+  (the prompt's ad-hoc history, else the user prompt), `system_instructions`
+  from the agent, and `output` from the response text, each clipped at
+  `AGENTPING_LLM_CONTENT_MAX_CHARS` (default 4000). Off by default. Step
+  events carry the completion only.
+- Events carry `turn`, and `conversation()` models a chat session as one run
+  (from the previous unreleased commits).
+
+### Not available
+
+- `ttft_ms` (time to first token). laravel/ai's stream events only carry
+  whole-second timestamps, so the SDK cannot measure it; the other SDKs do.
+
 ## [0.2.0] - 2026-09-17
 
 ### Fixed

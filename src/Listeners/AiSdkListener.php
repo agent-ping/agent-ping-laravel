@@ -231,6 +231,69 @@ abstract class AiSdkListener
         return Str::limit($text, $max, '...');
     }
 
+    /**
+     * The prompt and completion for an llm_call, when capture_llm_content is
+     * on: `input` as {role, content} messages (the ad-hoc history when the
+     * prompt carries one, else the user prompt), `system_instructions` from
+     * the agent, and `output` from the response text. Each piece is clipped
+     * at llm_content_max_chars.
+     *
+     * @return array<string, mixed>
+     */
+    protected function contentData(mixed $prompt, mixed $response): array
+    {
+        if (! (bool) config('agentping.capture_llm_content', false)) {
+            return [];
+        }
+        $max = max(0, (int) config('agentping.llm_content_max_chars', 4000));
+        $data = [];
+
+        $messages = is_object($prompt) ? ($prompt->messages ?? null) : null;
+        $input = [];
+        if (is_iterable($messages)) {
+            foreach ($messages as $message) {
+                $role = is_object($message) ? ($message->role ?? null) : (is_array($message) ? ($message['role'] ?? null) : null);
+                if (is_object($role) && isset($role->value)) {
+                    $role = $role->value;
+                }
+                $content = is_object($message) ? ($message->content ?? $message) : (is_array($message) ? ($message['content'] ?? $message) : $message);
+                $text = $this->stringify($content, $max);
+                if ($text !== null) {
+                    $input[] = ['role' => is_string($role) && $role !== '' ? strtolower($role) : 'user', 'content' => $text];
+                }
+            }
+        }
+        if ($input === [] && is_object($prompt)) {
+            $text = $this->stringify($prompt->prompt ?? null, $max);
+            if ($text !== null) {
+                $input[] = ['role' => 'user', 'content' => $text];
+            }
+        }
+        if ($input !== []) {
+            $data['input'] = $input;
+        }
+
+        $agent = is_object($prompt) ? ($prompt->agent ?? null) : null;
+        if (is_object($agent) && is_callable([$agent, 'instructions'])) {
+            try {
+                $instructions = $this->stringify($agent->instructions(), $max);
+                if ($instructions !== null) {
+                    $data['system_instructions'] = $instructions;
+                }
+            } catch (\Throwable) {
+                // Instructions that need a request context are not worth failing the event for.
+            }
+        }
+
+        $output = is_object($response) ? ($response->text ?? null) : null;
+        $outputText = is_string($output) || $output instanceof \Stringable ? $this->stringify($output, $max) : null;
+        if ($outputText !== null) {
+            $data['output'] = $outputText;
+        }
+
+        return $data;
+    }
+
     protected function latencyMs(mixed $time): ?int
     {
         return is_int($time) || is_float($time) ? (int) max(0, round($time)) : null;
