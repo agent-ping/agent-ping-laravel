@@ -7,6 +7,32 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
+### Added
+
+- `AGENTPING_VERSION` (config `agentping.version`) labels every run with the
+  build or prompt version that produced it; `AgentPing::run()`,
+  `AgentPing::agent()` and `AgentPing::conversation()` take a `version` to
+  override it per run. The dashboard's Spend and Verify charts mark where each
+  new version was first seen.
+- `AGENTPING_CAPTURE_LLM_CONTENT=true` sends the prompt and completion on the
+  `llm_call` events built from laravel/ai: `input` as {role, content} messages
+  (the prompt's ad-hoc history, else the user prompt), `system_instructions`
+  from the agent, and `output` from the response text, each clipped at
+  `AGENTPING_LLM_CONTENT_MAX_CHARS` (default 4000). Off by default. Step
+  events carry the completion only.
+- Events carry `turn`, the exchange they belong to, and `conversation()` models a
+  chat session as one run: every turn lands on a run whose id is derived
+  from the session id, so a stateless handler rebuilds it on any turn, and
+  an idle timeout (15 minutes by default) closes it as success when the user
+  walks away. The idle timeout and its closing status are settable on any run.
+
+### Not available
+
+- `ttft_ms` (time to first token). laravel/ai's stream events only carry
+  whole-second timestamps, so the SDK cannot measure it; the other SDKs do.
+
 ## [0.2.0] - 2026-09-17
 
 ### Fixed
@@ -112,7 +138,8 @@ The 0.x line is pre-1.0. Public API may change before 1.0.0. We do not
 break the wire format between SDK and ingest without a version bump and
 a migration note here.
 
-[Unreleased]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/agent-ping/agent-ping-laravel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/agent-ping/agent-ping-laravel/releases/tag/v0.1.0

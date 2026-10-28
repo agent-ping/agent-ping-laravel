@@ -140,12 +140,78 @@ class AgentPing
     /**
      * @param  array<string, mixed>|null  $metadata
      */
+    /**
+     * One chat session as one run, with every turn appended to it.
+     *
+     * A conversation has no reliable end -- the user closes the tab, or simply
+     * stops -- so pass the same $sessionId on every turn and the turns collect on
+     * a single record instead of becoming a run per message. The run id and its
+     * start time are both derived from the session id, so a stateless request can
+     * rebuild this without storing a mapping; re-opening is idempotent server-side.
+     *
+     *   $chat = AgentPing::conversation('support-chat', $sessionId);
+     *   $chat->event('llm_call', [...]);
+     *   // ...and when the user closes the chat:
+     *   $chat->finish(status: 'success');
+     *
+     * If finish is never called the idle timeout closes it at its last activity.
+     *
+     * @param  string  $sessionId  32 hex characters whose first 12 are the session's
+     *                             start time in milliseconds. See newSessionId().
+     * @param  array<string, mixed>|null  $metadata
+     */
+    public function conversation(
+        string $agent,
+        string $sessionId,
+        int $idleTimeoutSeconds = 900,
+        string $idleTimeoutStatus = 'success',
+        ?string $customerId = null,
+        ?string $feature = null,
+        ?array $metadata = null,
+        ?string $version = null,
+    ): Run {
+        if (preg_match('/^[0-9a-f]{32}$/', $sessionId) !== 1) {
+            throw new \InvalidArgumentException(
+                'conversation: sessionId must be 32 hex characters (see newSessionId())'
+            );
+        }
+        $startedMs = (int) hexdec(substr($sessionId, 0, 12));
+        if ($startedMs <= 0) {
+            throw new \InvalidArgumentException('conversation: sessionId does not carry a start time');
+        }
+
+        $run = new Run(
+            sdk: $this,
+            agent: $agent,
+            customerId: $customerId,
+            feature: $feature,
+            metadata: $metadata,
+            idleTimeoutSeconds: $idleTimeoutSeconds,
+            idleTimeoutStatus: $idleTimeoutStatus,
+            resume: [
+                'run_' . $this->region() . '_' . $sessionId,
+                Run::iso(Carbon::createFromTimestampMs($startedMs, 'UTC')),
+            ],
+            version: $version,
+        );
+        $this->currentRun = $run;
+
+        return $run;
+    }
+
+    /** A session id for conversation(). Keep it for the life of the chat. */
+    public function newSessionId(): string
+    {
+        return Ids::uuid7Hex();
+    }
+
     public function run(
         string $agent,
         ?string $customerId = null,
         ?string $feature = null,
         ?array $metadata = null,
         ?string $parentRunId = null,
+        ?string $version = null,
     ): Run {
         $parent = $parentRunId ?? ($_ENV['AGENTPING_PARENT_RUN'] ?? getenv('AGENTPING_PARENT_RUN') ?: null);
         $run = new Run(
@@ -155,6 +221,7 @@ class AgentPing
             feature: $feature,
             metadata: $metadata,
             parentRunId: $parent !== false && $parent !== '' ? $parent : null,
+            version: $version,
         );
         $this->currentRun = $run;
 
@@ -203,6 +270,17 @@ class AgentPing
      * active and the call cannot be attributed to a named Agent class (e.g. the
      * anonymous agent() helper). Set per-app via AGENTPING_DEFAULT_AGENT.
      */
+    /**
+     * The version label runs start with when they set none: config
+     * agentping.version (AGENTPING_VERSION), or null for no label.
+     */
+    public function defaultVersion(): ?string
+    {
+        $version = trim((string) config('agentping.version', ''));
+
+        return $version === '' ? null : $version;
+    }
+
     public function defaultAgentName(): string
     {
         return $this->defaultAgent;
@@ -226,9 +304,10 @@ class AgentPing
         ?string $customerId = null,
         ?string $feature = null,
         ?array $metadata = null,
+        ?string $version = null,
     ): mixed {
         $previous = $this->currentRun;
-        $run = $this->run($name, customerId: $customerId, feature: $feature, metadata: $metadata);
+        $run = $this->run($name, customerId: $customerId, feature: $feature, metadata: $metadata, version: $version);
 
         try {
             $result = $callback($run);

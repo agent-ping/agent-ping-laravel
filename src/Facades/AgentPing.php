@@ -8,8 +8,8 @@ use AgentPing\Laravel\Run;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static Run run(string $agent, ?string $customerId = null, ?string $feature = null, ?array $metadata = null, ?string $parentRunId = null)
- * @method static mixed agent(string $name, \Closure $callback, ?string $customerId = null, ?string $feature = null, ?array $metadata = null)
+ * @method static Run run(string $agent, ?string $customerId = null, ?string $feature = null, ?array $metadata = null, ?string $parentRunId = null, ?string $version = null)
+ * @method static mixed agent(string $name, \Closure $callback, ?string $customerId = null, ?string $feature = null, ?array $metadata = null, ?string $version = null)
  * @method static void useAgent(?string $name)
  * @method static ?string currentAgentName()
  * @method static void resetScope()

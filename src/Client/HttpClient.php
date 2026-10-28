@@ -15,7 +15,7 @@ class HttpClient
         private readonly string $apiKey,
         private readonly string $baseUrl,
         private readonly float $timeout = 2.0,
-        private readonly string $userAgent = 'agentping-laravel/0.1.0',
+        private readonly string $userAgent = 'agentping-laravel/0.3.0',
     ) {}
 
     /**

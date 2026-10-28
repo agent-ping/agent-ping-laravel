@@ -25,10 +25,28 @@ class Run
         public readonly ?string $feature = null,
         public readonly ?array $metadata = null,
         public readonly ?string $parentRunId = null,
+        /**
+         * Close the run automatically once no event has arrived for this long
+         * (60-86400 seconds). For callers that cannot be relied on to finish the
+         * run, and it makes the run resumable: a later event reopens it.
+         */
+        public readonly ?int $idleTimeoutSeconds = null,
+        /**
+         * What that silence meant. The server defaults to "timeout" -- we stopped
+         * waiting, we do not know how it went. A chat should pass "success".
+         */
+        public readonly ?string $idleTimeoutStatus = null,
+        /** @var array{0: string, 1: string}|null Reuse a known run id and start time. */
+        ?array $resume = null,
+        /**
+         * The build or prompt version that produced this run (up to 64
+         * characters). Falls back to config('agentping.version').
+         */
+        public readonly ?string $version = null,
     ) {
         $this->region = $sdk->region();
-        $this->id = Ids::newId('run', $this->region);
-        $this->startedAt = self::iso(Carbon::now());
+        $this->id = $resume[0] ?? Ids::newId('run', $this->region);
+        $this->startedAt = $resume[1] ?? self::iso(Carbon::now());
 
         $body = [
             'id' => $this->id,
@@ -41,11 +59,21 @@ class Run
         if ($feature !== null) {
             $body['feature'] = $feature;
         }
+        $resolvedVersion = trim((string) ($version ?? $sdk->defaultVersion()));
+        if ($resolvedVersion !== '') {
+            $body['version'] = $resolvedVersion;
+        }
         if ($metadata !== null && $metadata !== []) {
             $body['metadata'] = $metadata;
         }
         if ($parentRunId !== null && $parentRunId !== '') {
             $body['parent_run_id'] = $parentRunId;
+        }
+        if ($idleTimeoutSeconds !== null) {
+            $body['idle_timeout_seconds'] = $idleTimeoutSeconds;
+            if ($idleTimeoutStatus !== null) {
+                $body['idle_timeout_status'] = $idleTimeoutStatus;
+            }
         }
 
         $sdk->enqueue('/v1/runs', $body);
@@ -74,18 +102,29 @@ class Run
     /**
      * @param  array<string, mixed>|null  $data
      */
-    public function event(string $type, ?array $data = null): string
+    /**
+     * Append an event to the run.
+     *
+     * @param  array<string, mixed>|null  $data
+     * @param  int|null  $turn  Which exchange of a conversation this belongs to,
+     *                          counting from 1. One turn is often several events --
+     *                          call the model, run a tool, call it again -- and this
+     *                          is what groups them. Omit outside a conversation.
+     */
+    public function event(string $type, ?array $data = null, ?int $turn = null): string
     {
         $evtId = Ids::newId('evt', $this->region);
+        $entry = [
+            'external_id' => $evtId,
+            'type' => $type,
+            'ts' => self::iso(Carbon::now()),
+            'data' => $data ?? [],
+        ];
+        if ($turn !== null) {
+            $entry['turn'] = $turn;
+        }
         $this->sdk->enqueue('/v1/runs/' . $this->id . '/events', [
-            'events' => [
-                [
-                    'external_id' => $evtId,
-                    'type' => $type,
-                    'ts' => self::iso(Carbon::now()),
-                    'data' => $data ?? [],
-                ],
-            ],
+            'events' => [$entry],
         ]);
 
         return $evtId;
